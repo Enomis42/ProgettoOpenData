@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imprese Attive Italia - Premium Dashboard</title>
+    <style>
+        :root {
+            --brand-blue: #185FA5;
+            --text-main: #2c3e50;
+            --text-sub: #7f8c8d;
+            --bg-card: #f8f9fa;
+            --danger: #d63031;
+            --success: #27ae60;
+            --border: #e9ecef;
+        }
+
+        * { box-sizing: border-box; font-family: -apple-system, system-ui, sans-serif; }
+        body { background: #fff; margin: 0; padding: 20px; color: var(--text-main); }
+        
+        .wrap { max-width: 1100px; margin: auto; border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+
+        /* KPI Layout */
+        .top-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 30px; }
+        .kpi-block { display: flex; gap: 15px; flex-wrap: wrap; flex: 1; }
+        .kpi { 
+            background: var(--bg-card); 
+            border-radius: 12px; 
+            padding: 16px; 
+            min-width: 180px;
+            flex: 1;
+            border: 1px solid var(--border);
+        }
+        .kpi-label { font-size: 11px; color: var(--text-sub); margin: 0; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+        .kpi-val { font-size: 24px; font-weight: 700; margin: 6px 0; letter-spacing: -0.5px; }
+        .kpi-sub { font-size: 12px; font-weight: 500; margin: 0; }
+        .neg { color: var(--danger); }
+        .pos { color: var(--success); }
+
+        /* Zoom Buttons */
+        .zoom-row { display: flex; background: var(--bg-card); padding: 4px; border-radius: 10px; border: 1px solid var(--border); }
+        .zbtn { 
+            font-size: 12px; font-weight: 600; padding: 8px 16px; border-radius: 8px; 
+            border: none; cursor: pointer; background: transparent; color: var(--text-sub); transition: all 0.2s; 
+        }
+        .zbtn.on { background: #fff; color: var(--brand-blue); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+
+        /* Chart Area */
+        .chart-container { position: relative; height: 400px; width: 100%; }
+        
+        /* Custom Tooltip */
+        #tip {
+            position: absolute; background: rgba(255,255,255,0.98); backdrop-filter: blur(4px);
+            border: 1px solid #d1d1d1; border-radius: 8px; padding: 12px; 
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1); pointer-events: none; z-index: 100;
+            min-width: 150px; display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrap">
+    <div class="top-row">
+        <div class="kpi-block">
+            <div class="kpi">
+                <p class="kpi-label">Valore Attuale</p>
+                <p class="kpi-val" id="kv-last">—</p>
+                <p class="kpi-sub" id="kv-last-date">Marzo 2025</p>
+            </div>
+            <div class="kpi">
+                <p class="kpi-label">Variazione dal 2009</p>
+                <p class="kpi-val" id="kv-delta">—</p>
+                <p class="kpi-sub" id="kv-pct">—</p>
+            </div>
+            <div class="kpi">
+                <p class="kpi-label">Massimo Storico</p>
+                <p class="kpi-val" id="kv-peak">—</p>
+                <p class="kpi-sub" id="kv-peak-date">—</p>
+            </div>
+        </div>
+        <div class="zoom-row">
+            <button class="zbtn" id="b3y" onclick="setZ('3y')">3 Anni</button>
+            <button class="zbtn" id="b1y" onclick="setZ('1y')">1 Anno</button>
+            <button class="zbtn on" id="bmax" onclick="setZ('max')">Tutto</button>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="mc"></canvas>
+        <div id="tip">
+            <div style="font-weight:700; font-size:11px; color:#7f8c8d; margin-bottom:4px" id="tip-date"></div>
+            <div style="font-size:18px; font-weight:700; color:#185FA5" id="tip-val"></div>
+            <div style="font-size:11px; margin-top:6px; font-weight:600" id="tip-delta"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const raw = [["2009-03-31",5279013],["2009-04-30",5283759],["2009-05-31",5290949],["2009-06-30",5295471],["2009-07-31",5294432],["2009-08-31",5292935],["2009-09-30",5297780],["2009-10-31",5298237],["2009-11-30",5297804],["2009-12-31",5283531],["2010-01-31",5255325],["2010-02-28",5245639],["2010-03-31",5253397],["2010-04-30",5263610],["2010-05-31",5273334],["2010-06-30",5280743],["2010-07-31",5287579],["2010-08-31",5286106],["2010-09-30",5291575],["2010-10-31",5295633],["2010-11-30",5297643],["2010-12-31",5281934],["2011-01-31",5256450],["2011-02-28",5248139],["2011-03-31",5256934],["2011-04-30",5266568],["2011-05-31",5274784],["2011-06-30",5281736],["2011-07-31",5285976],["2011-08-31",5285834],["2011-09-30",5291693],["2011-10-31",5291392],["2011-11-30",5289476],["2011-12-31",5275515],["2012-01-31",5240229],["2012-02-29",5226115],["2012-03-31",5233746],["2012-04-30",5242172],["2012-05-31",5249900],["2012-06-30",5254343],["2012-07-31",5256128],["2012-08-31",5255488],["2012-09-30",5259763],["2012-10-31",5257962],["2012-11-30",5255260],["2012-12-31",5239924],["2013-01-31",5197936],["2013-02-28",5187239],["2013-03-31",5190644],["2013-04-30",5195305],["2013-05-31",5200599],["2013-06-30",5200451],["2013-07-31",5196263],["2013-08-31",5192638],["2013-09-30",5199030],["2013-10-31",5201800],["2013-11-30",5201806],["2013-12-31",5186124],["2014-01-31",5149313],["2014-02-28",5142960],["2014-03-31",5147875],["2014-04-30",5145217],["2014-05-31",5153943],["2014-06-30",5159268],["2014-07-31",5159972],["2014-08-31",5159369],["2014-09-30",5164299],["2014-10-31",5162461],["2014-11-30",5160496],["2014-12-31",5148413],["2015-01-31",5115241],["2015-02-28",5110728],["2015-03-31",5118354],["2015-04-30",5127106],["2015-05-31",5135908],["2015-06-30",5144572],["2015-07-31",5149040],["2015-08-31",5148959],["2015-09-30",5154119],["2015-10-31",5155722],["2015-11-30",5156380],["2015-12-31",5144383],["2016-01-31",5117571],["2016-02-29",5114496],["2016-03-31",5125978],["2016-04-30",5136390],["2016-05-31",5146045],["2016-06-30",5153222],["2016-07-31",5156358],["2016-08-31",5155493],["2016-09-30",5159868],["2016-10-31",5159305],["2016-11-30",5158677],["2016-12-31",5145995],["2017-01-31",5117192],["2017-02-28",5114929],["2017-03-31",5124777],["2017-04-30",5133702],["2017-05-31",5142895],["2017-06-30",5150561],["2017-07-31",5153524],["2017-08-31",5152956],["2017-09-30",5157129],["2017-10-31",5157664],["2017-11-30",5157661],["2017-12-31",5150149],["2018-01-31",5120853],["2018-02-28",5120359],["2018-03-31",5129749],["2018-04-30",5136157],["2018-05-31",5146072],["2018-06-30",5154497],["2018-07-31",5158245],["2018-08-31",5157962],["2018-09-30",5161031],["2018-10-31",5160712],["2018-11-30",5161300],["2018-12-31",5150743],["2019-01-31",5116666],["2019-02-28",5113406],["2019-03-31",5121223],["2019-04-30",5127219],["2019-05-31",5135957],["2019-06-30",5142947],["2019-07-31",5146157],["2019-08-31",5146835],["2019-09-30",5150293],["2019-10-31",5149974],["2019-11-30",5148788],["2019-12-31",5137678],["2020-01-31",5105394],["2020-02-29",5100247],["2020-03-31",5104315],["2020-04-30",5110872],["2020-05-31",5123895],["2020-06-30",5133881],["2020-07-31",5140486],["2020-08-31",5143574],["2020-09-30",5149696],["2020-10-31",5153133],["2020-11-30",5156767],["2020-12-31",5147514],["2021-01-31",5130294],["2021-02-28",5135678],["2021-03-31",5148915],["2021-04-30",5159408],["2021-05-31",5169171],["2021-06-30",5180318],["2021-07-31",5188371],["2021-08-31",5191717],["2021-09-30",5197040],["2021-10-31",5188175],["2021-11-30",5187240],["2021-12-31",5164831],["2022-01-31",5144704],["2022-02-28",5146631],["2022-03-31",5157408],["2022-04-30",5164153],["2022-05-31",5172612],["2022-06-30",5177184],["2022-07-31",5170149],["2022-08-31",5165525],["2022-09-30",5155390],["2022-10-31",5154353],["2022-11-30",5149527],["2022-12-31",5129335],["2023-01-31",5103789],["2023-02-28",5100665],["2023-03-31",5106271],["2023-04-30",5111085],["2023-05-31",5114996],["2023-06-30",5121221],["2023-07-31",5120573],["2023-08-31",5120838],["2023-09-30",5120025],["2023-10-31",5117904],["2023-11-30",5115070],["2023-12-31",5097617],["2024-01-31",5070156],["2024-02-29",5073897],["2024-03-31",5083500],["2024-04-30",5089816],["2024-05-31",5093822],["2024-06-30",5094479],["2024-07-31",5095229],["2024-08-31",5095782],["2024-09-30",5097418],["2024-10-31",5089038],["2024-11-30",5078802],["2024-12-31",5052350],["2025-01-31",5029368],["2025-02-28",5034289],["2025-03-31",5044698]];
+
+const mnames = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+const fmt = v => v.toLocaleString('it-IT');
+
+// Calcoli KPI
+const lastVal = raw[raw.length-1][1];
+const firstVal = raw[0][1];
+const maxVal = Math.max(...raw.map(d=>d[1]));
+const peakIdx = raw.findIndex(d => d[1] === maxVal);
+const diffTot = lastVal - firstVal;
+const pctTot = ((diffTot / firstVal) * 100).toFixed(1);
+
+document.getElementById('kv-last').textContent = fmt(lastVal);
+document.getElementById('kv-delta').textContent = (diffTot > 0 ? '+' : '') + fmt(diffTot);
+const pctEl = document.getElementById('kv-pct');
+pctEl.textContent = `${pctTot}% dal 2009`;
+pctEl.className = 'kpi-sub ' + (diffTot >= 0 ? 'pos' : 'neg');
+document.getElementById('kv-peak').textContent = fmt(maxVal);
+const pDate = new Date(raw[peakIdx][0]);
+document.getElementById('kv-peak-date').textContent = mnames[pDate.getMonth()] + ' ' + pDate.getFullYear();
+
+let chart;
+
+function initChart(startIndex = 0) {
+    const dataSlice = raw.slice(startIndex);
+    const ctx = document.getElementById('mc').getContext('2d');
+    
+    if(chart) chart.destroy();
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(24, 95, 165, 0.25)');
+    gradient.addColorStop(1, 'rgba(24, 95, 165, 0)');
+
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dataSlice.map(d => d[0]),
+            datasets: [{
+                data: dataSlice.map(d => d[1]),
+                borderColor: '#185FA5',
+                borderWidth: 2.5,
+                pointRadius: 0,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: '#185FA5',
+                pointHoverBorderColor: '#fff',
+                pointHoverBorderWidth: 2,
+                fill: true,
+                backgroundColor: gradient,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: false,
+                    external: function(context) {
+                        const tip = document.getElementById('tip');
+                        if (context.tooltip.opacity === 0) { tip.style.display = 'none'; return; }
+                        
+                        const i = context.tooltip.dataPoints[0].dataIndex;
+                        const current = dataSlice[i][1];
+                        const prev = i > 0 ? dataSlice[i-1][1] : current;
+                        const diff = current - prev;
+                        const d = new Date(dataSlice[i][0]);
+
+                        document.getElementById('tip-date').textContent = mnames[d.getMonth()] + ' ' + d.getFullYear();
+                        document.getElementById('tip-val').textContent = fmt(current);
+                        const dEl = document.getElementById('tip-delta');
+                        dEl.textContent = `${diff >= 0 ? '▲ +' : '▼ '}${fmt(diff)} vs mese prec.`;
+                        dEl.style.color = diff >= 0 ? '#27ae60' : '#d63031';
+
+                        tip.style.display = 'block';
+                        const canvasWidth = context.chart.width;
+                        const tipWidth = tip.offsetWidth;
+                        let xPos = context.tooltip.caretX + 20;
+                        if (xPos + tipWidth > canvasWidth) xPos = context.tooltip.caretX - tipWidth - 20;
+
+                        tip.style.left = xPos + 'px';
+                        tip.style.top = (context.tooltip.caretY - 50) + 'px';
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        maxRotation: 0,
+                        autoSkip: false,
+                        font: { size: 10, weight: '500' },
+                        color: '#95a5a6',
+                        callback: function(val, index) {
+                            const d = new Date(dataSlice[index][0]);
+                            const year = d.getFullYear();
+                            // Logica: Mostra l'anno solo a Gennaio E se (anno - 2009) è divisibile per 3
+                            if (d.getMonth() === 0) {
+                                if (startIndex !== 0 || (year - 2009) % 3 === 0) {
+                                    return year;
+                                }
+                            }
+                            return '';
+                        }
+                    }
+                },
+                y: {
+                    position: 'right',
+                    grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false },
+                    ticks: {
+                        color: '#95a5a6',
+                        font: { size: 10 },
+                        callback: v => (v/1000000).toFixed(1) + ' Mln'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function setZ(mode) {
+    document.querySelectorAll('.zbtn').forEach(b => b.classList.remove('on'));
+    document.getElementById('b' + mode).classList.add('on');
+    
+    let idx = 0;
+    if(mode === '1y') idx = raw.length - 12;
+    if(mode === '3y') idx = raw.length - 36;
+    initChart(idx);
+}
+
+// Avvio
+initChart(0);
+</script>
+
+</body>
+</html>
